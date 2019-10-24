@@ -2,3 +2,12 @@
 .Rhistory
 .RData
 .Ruserdata
+data/
+.csv
+.tsv
+.xlsx
+.xls
+.tab
+.txt
+.jpg
+.png

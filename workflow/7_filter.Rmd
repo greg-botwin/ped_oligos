@@ -1,0 +1,159 @@
+---
+title: "Selecting Proteins"
+author: "Translational Genomics Group"
+date: "10/9/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+uniprot <- read_tsv("data/uniprot-filtered-organism__Homo+sapiens+(Human)+[9606]_+AND+review--.tab")
+```
+
+## Antigenic
+9613 antigenic proteins
+```{r}
+iedb <- read_tsv("data/1_anitgenic_iedb.tsv")
+iedb <- iedb %>%
+  rename(uniprotswissprot = uniprotswsissprot)
+ms <- read_tsv("data/2_antigenic_ms.tsv")
+ms_racle <- read_tsv("data/3_ms_racle.tsv")
+
+
+antigenic <- bind_rows(iedb, ms_racle, ms_racle) 
+
+antigenic <- antigenic %>%
+  distinct()
+```
+
+```{r}
+table(antigenic$uniprotswissprot %in% uniprot$Entry)
+```
+
+## Special Interest
+
+### IBD
+```{r}
+ibd <- read_tsv("data/6_known_ibd_genes.tsv")
+
+ibd <- ibd %>%
+  mutate(rank = 0) %>%
+  dplyr::select(uniprotswissprot, rank)
+
+table(ibd$uniprotswissprot %in% uniprot$Entry)
+
+```
+
+## GFP
+238 aa long
+P42212 (GFP_AEQVI)
+ProteinGreen fluorescent protein
+Gene GFP
+Organism Aequorea victoria (Jellyfish)
+
+```{r}
+gfp <- data.frame("uniprotswissprot"  = c("P42212"),
+                  "Length" = 238,
+                  "rank" = 0)
+```
+
+
+## Epithelial
+2927 proteins epithelail sc proteins
+1745 antigenic
+```{r}
+epi_sc <- read_tsv("data/4_epithelial_uc_sc.tsv")
+```
+
+```{r}
+table(epi_sc$uniprotswissprot %in% uniprot$Entry)
+```
+
+```{r}
+table(epi_sc$uniprotswissprot %in% antigenic$uniprotswissprot)
+
+epi_sc %>%
+  filter(uniprotswissprot %in% antigenic$uniprotswissprot)
+```
+
+```{r}
+gtex <- read_tsv("data/5_epithelial_gtex.tsv")
+gtex <- gtex %>%
+  dplyr::select(uniprotswissprot, rank)
+```
+
+```{r}
+epithelial <- bind_rows(epi_sc, gtex)
+epithelial <- epithelial %>%
+  mutate(rank = if_else(is.na(rank), 0.5, rank))
+```
+
+## Protein to Oligo
+- Each oligo can be up to 230nt long
+- prefix and suffix 21nt long
+- need remaining nucleotide length to be divisible by 3 to stay in frame
+- unique oligo sequence will be 186nt + 21nt prefix + 21nt suffix = 230
+- unique oligo sequence will cover 62 amino acids, with 31 overlap
+- oligos needs to tile one protein is protein aa length / 31 aa per tile =, rounded up
+- we can have up to 100,000 unique oligo sequences
+- to olgio the entire protein universe requires 377,134 oligos
+
+```{r}
+aa_length_2_oligos <- function(length){
+  ceiling(length/31)
+}
+
+uniprot <- uniprot %>%
+  mutate(n_oligos = aa_length_2_oligos(Length)) %>%
+  dplyr::select(Entry, `Entry name`, n_oligos)
+
+gfp <- gfp %>%
+  mutate(n_oligos = aa_length_2_oligos(Length)) %>%
+  dplyr::select(uniprotswissprot, n_oligos)
+```
+
+
+### Oligo Selection
+```{r}
+antigenic_epithelial <- epithelial %>%
+  filter(uniprotswissprot %in% antigenic$uniprotswissprot)
+
+antigenic_epithelial_si <- bind_rows(antigenic_epithelial, ibd)
+
+antigenic_epithelial_si <- antigenic_epithelial_si %>%
+  left_join(., uniprot, by = c("uniprotswissprot" = "Entry"))
+
+antigenic_epithelial_si <- bind_rows(antigenic_epithelial_si, gfp)
+
+antigenic_epithelial_si %>%
+  filter(rank == 0 ) %>%
+  summarise(total_oligo = sum(n_oligos))
+
+antigenic_epithelial_si %>%
+  filter(rank < 1 ) %>%
+  summarise(total_oligo = sum(n_oligos))
+
+# arrange by rank, keep only first time protein listed
+oligos <- antigenic_epithelial_si %>%
+  arrange(rank) %>%
+  distinct(uniprotswissprot, .keep_all = TRUE) %>%
+  mutate(roll_total = cumsum(n_oligos)) %>%
+  filter(roll_total < 100000)
+
+```
+
+## Annotate
+```{r}
+uniprot_annotate <- read_tsv("data/uniprot-filtered-organism__Homo+sapiens+(Human)+[9606]_+AND+review--.tab")
+
+annotated_oligos <- uniprot_annotate %>%
+  dplyr::select(Entry, `Protein names`, `Gene names`) %>%
+  inner_join(., oligos, by = c("Entry" = "uniprotswissprot"))
+
+write_csv(annotated_oligos, "data/annotated_selected_proteins.csv")
+```
+

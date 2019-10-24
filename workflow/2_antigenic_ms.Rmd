@@ -1,0 +1,72 @@
+---
+title: "Antigenic by Mass Spec"
+author: "Translational Genomics Group"
+date: "10/9/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Protein Universe 
+![UniProt Reviewed (Swiss-Prot) - Manually annotated](data/uniprot_logo.png)
+
+On 09-OCT-2019 20430 proteins meeting the following criteria were downloaded from Uniprot:  
+- reviewed:yes AND organism:"Homo sapiens (Human) [9606]" 
+
+```{r}
+uniprot <- read_tsv("data/uniprot-filtered-organism__Homo+sapiens+(Human)+[9606]_+AND+review--.tab")
+
+length(unique(uniprot$Entry))
+```
+
+
+## Mommeng et. Al. Mass Spec Analysis
+
+  ![Mass Spec Analysis](data/ms_photo.jpg)
+
+Sampling From the Proteome to the Human Leukocyte Antigen-DR (HLA-DR) Ligandome Proceeds Via High Specificity
+- 1,220 unique proteins id across 3 preperation types
+
+
+```{r}
+scx <- read_csv("data/SYSMHC00015_Mommeng_161005_Heck_Netherlands_SCX_combined.csv")
+scx_hcd <- read_csv("data/SYSMHC00015_Mommeng_161005_Heck_Netherlands_HCD_SCX_combined.csv")
+scx_etd <- read_csv("data/SYSMHC00015_Mommeng_161005_Heck_Netherlands_ETD_SCX_combined.csv")
+
+ms <- bind_rows(scx, scx_etd, scx_etd, .id = "id")
+ms <- ms %>%
+  separate(protein_id, into = c("dnk", "uniprot_id", "uniprot_name"), sep = "\\|", 
+           remove = FALSE, extra = "merge") %>%
+  select(uniprot_id, uniprot_name) %>%
+  distinct(uniprot_id, .keep_all = TRUE)
+
+table(ms$uniprot_id %in% uniprot$Entry)
+
+ms %>%
+  filter(!uniprot_id %in% uniprot$Entry)
+
+ms <- ms %>%
+  mutate(uniprot_id = if_else(uniprot_id == "P62158", "P0DP23", uniprot_id)) %>%
+  mutate(uniprot_id = if_else(uniprot_id == "P0CW22", "P08708", uniprot_id)) %>% 
+  add_row(uniprot_id = "P0DP24", uniprot_name = "CALM2_HUMAN")
+
+ms_list <- ms %>%
+  filter(uniprot_id %in% uniprot$Entry)
+
+ms_list %>%
+  rename(uniprotswsissprot = uniprot_id) %>%
+  select(uniprotswsissprot) %>%
+  write_tsv("data/2_antigenic_ms.tsv")
+  
+```
+
+Missing ids manually searched on UniProt on 21-JUN-2019 
+
+- ZZ is NA
+- P62158 is P0DP23 (CALM1_HUMAN) and P0DP24 (CALM2_HUMAN)
+- P0CW22 updated to P08708 
+
+
