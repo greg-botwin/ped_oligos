@@ -2,7 +2,7 @@
 title: "Epithelial Proteins"
 author: "Translational Genomics Group"
 date: "6/21/2019"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}

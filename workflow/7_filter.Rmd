@@ -2,7 +2,7 @@
 title: "Selecting Proteins"
 author: "Translational Genomics Group"
 date: "10/9/2019"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}

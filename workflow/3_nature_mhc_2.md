@@ -94,6 +94,8 @@ ms_racle <- ms_racle %>%
 Filter to Protein Reviewed
 --------------------------
 
+Missing 10 proteins not in Uniprot
+
 ``` r
 table(ms_racle$uniprotswissprot %in% uniprot$Entry)
 ```
